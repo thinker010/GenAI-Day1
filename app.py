@@ -57,7 +57,8 @@ if prompt:
                     st.session_state.chat_history.append(AIMessage(content=text_response))
 
                 if image_url:
-                    st.image(image_url, caption="Generated Image")
+                    st.session_state.chat_history.append(AIMessage(content="[IMAGE]"))
+                    st.session_state.image_url = image_url
 
             except Exception as e:
                 st.error(f"Image generation failed: {str(e)}")
@@ -75,4 +76,7 @@ for msg in st.session_state.chat_history:
     if isinstance(msg, HumanMessage):
         st.chat_message("user").write(msg.content)
     elif isinstance(msg, AIMessage):
-        st.chat_message("assistant").write(msg.content)
+        if msg.content == "[IMAGE]" and "image_url" in st.session_state:
+            st.image(st.session_state.image_url, caption="Generated Image")
+        else:
+            st.chat_message("assistant").write(msg.content)
