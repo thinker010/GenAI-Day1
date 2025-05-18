@@ -7,7 +7,6 @@ from google import genai
 from google.genai import types
 from PIL import Image
 from io import BytesIO
-import base64
 import os
 
 # Initialize LangChain chat model for text
@@ -20,6 +19,9 @@ client = genai.Client(api_key=API_KEY)
 # Session state for chat history
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = [SystemMessage(content="You are a helpful assistant.")]
+
+if "image_storage" not in st.session_state:
+    st.session_state.image_storage = []  # Store generated images
 
 st.title("🧠 Gemini Chatbot with Image Generation")
 
@@ -41,23 +43,19 @@ if prompt:
                     )
                 )
                 text_response = ""  
-                image_url = None
+                image = None
 
                 for part in response.candidates[0].content.parts:
                     if part.text:
                         text_response += part.text
                     elif part.inline_data:
                         image = Image.open(BytesIO(part.inline_data.data))
-                        buffered = BytesIO()
-                        image.save(buffered, format="PNG")
-                        img_str = base64.b64encode(buffered.getvalue()).decode()
-                        image_url = f"data:image/png;base64,{img_str}"
 
                 if text_response:
                     st.session_state.chat_history.append(AIMessage(content=text_response))
 
-                if image_url:
-                    st.session_state.chat_history.append(AIMessage(content=f"[IMAGE]{image_url}[/IMAGE]"))
+                if image:
+                    st.session_state.image_storage.append(image)
 
             except Exception as e:
                 st.error(f"Image generation failed: {str(e)}")
@@ -71,13 +69,12 @@ if prompt:
                 st.error(f"Chat generation failed: {str(e)}")
 
 # Display chat history
+image_counter = 0
 for msg in st.session_state.chat_history:
     if isinstance(msg, HumanMessage):
         st.chat_message("user").write(msg.content)
     elif isinstance(msg, AIMessage):
-        if "[IMAGE]" in msg.content:
-            content, image_url = msg.content.split("[IMAGE]")[0], msg.content.split("[IMAGE]")[1].split("[/IMAGE]")[0]
-            st.chat_message("assistant").write(content)
-            st.chat_message("assistant").image(image_url, caption="Generated Image")
-        else:
-            st.chat_message("assistant").write(msg.content)
+        st.chat_message("assistant").write(msg.content)
+        if image_counter < len(st.session_state.image_storage):
+            st.image(st.session_state.image_storage[image_counter], caption="Generated Image")
+            image_counter += 1
