@@ -18,10 +18,7 @@ client = genai.Client(api_key=API_KEY)
 
 # Session state for chat history
 if "chat_history" not in st.session_state:
-    st.session_state.chat_history = [SystemMessage(content="You are a helpful assistant.")]
-
-if "image_storage" not in st.session_state:
-    st.session_state.image_storage = []  # Store generated images
+    st.session_state.chat_history = []
 
 st.title("🧠 Gemini Chatbot with Image Generation")
 
@@ -29,7 +26,7 @@ st.title("🧠 Gemini Chatbot with Image Generation")
 prompt = st.chat_input("Say something or request an image...")
 
 if prompt:
-    st.session_state.chat_history.append(HumanMessage(content=prompt))
+    st.session_state.chat_history.append({"role": "user", "content": prompt})
 
     if "generate image:" in prompt.lower():
         image_prompt = prompt.lower().replace("generate image:", "").strip()
@@ -42,39 +39,48 @@ if prompt:
                         response_modalities=["TEXT", "IMAGE"]
                     )
                 )
-                text_response = ""  
-                image = None
+                text_response = ""
+                image_data = None
 
                 for part in response.candidates[0].content.parts:
                     if part.text:
                         text_response += part.text
                     elif part.inline_data:
                         image = Image.open(BytesIO(part.inline_data.data))
+                        image_data = image
 
-                if text_response:
-                    st.session_state.chat_history.append(AIMessage(content=text_response))
-
-                if image:
-                    st.session_state.image_storage.append(image)
+                # Store only text response in history, not image data
+                st.session_state.chat_history.append(
+                    {"role": "assistant", "content": text_response, "is_image": True, "image_prompt": image_prompt}
+                )
+                # Display image immediately without storing in history
+                st.session_state.chat_history.append({"role": "assistant", "image_data": image_data})
 
             except Exception as e:
-                st.error(f"Image generation failed: {str(e)}")
+                st.session_state.chat_history.append(
+                    {"role": "assistant", "content": f"Image generation failed: {str(e)}"}
+                )
 
     else:
         with st.spinner("Thinking..."):
             try:
-                response = llm_text.invoke(st.session_state.chat_history)
-                st.session_state.chat_history.append(AIMessage(content=response.content))
+                response = llm_text.invoke(
+                    [HumanMessage(content=prompt)]
+                )
+                st.session_state.chat_history.append(
+                    {"role": "assistant", "content": response.content}
+                )
             except Exception as e:
-                st.error(f"Chat generation failed: {str(e)}")
+                st.session_state.chat_history.append(
+                    {"role": "assistant", "content": f"Chat generation failed: {str(e)}"}
+                )
 
 # Display chat history
-image_counter = 0
 for msg in st.session_state.chat_history:
-    if isinstance(msg, HumanMessage):
-        st.chat_message("user").write(msg.content)
-    elif isinstance(msg, AIMessage):
-        st.chat_message("assistant").write(msg.content)
-        if image_counter < len(st.session_state.image_storage):
-            st.image(st.session_state.image_storage[image_counter], caption="Generated Image")
-            image_counter += 1
+    if msg["role"] == "user":
+        st.chat_message("user").write(msg["content"])
+    elif msg["role"] == "assistant":
+        if "image_data" in msg:
+            st.chat_message("assistant").image(msg["image_data"], caption="Generated Image")
+        else:
+            st.chat_message("assistant").write(msg["content"])
