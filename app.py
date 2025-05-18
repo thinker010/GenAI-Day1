@@ -2,8 +2,8 @@ import streamlit as st
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
-# Initialize the chat model with text and image capabilities
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-preview")
+# Initialize the chat model (using image generation model)
+llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-preview-image-generation")
 
 # Session state for chat history
 if "chat_history" not in st.session_state:
@@ -22,22 +22,25 @@ if prompt:
     if "generate image:" in prompt.lower():
         image_prompt = prompt.lower().replace("generate image:", "").strip()
 
-        # Generate image using the Gemini model with image generation
+        # Generate image using the image model
         with st.spinner("Generating image..."):
-            response = llm.invoke([HumanMessage(content=f"Generate an image of: {image_prompt}")])
-
-        if response and response.content:
-            st.session_state.chat_history.append(AIMessage(content=f"Generated an image for: {image_prompt}\n[IMAGE]{response.content}[/IMAGE]"))
-        else:
-            st.error("Failed to generate image.")
+            try:
+                response = llm.invoke([HumanMessage(content=f"Generate an image of: {image_prompt}")])
+                if response and response.content:
+                    st.session_state.chat_history.append(AIMessage(content=f"Generated an image for: {image_prompt}\n[IMAGE]{response.content}[/IMAGE]"))
+                else:
+                    st.error("Failed to generate image.")
+            except Exception as e:
+                st.error(f"Image generation failed: {str(e)}")
 
     else:
         # Text response
         with st.spinner("Thinking..."):
-            response = llm.invoke(st.session_state.chat_history)
-
-        # Append AI message after getting the response
-        st.session_state.chat_history.append(AIMessage(content=response.content))
+            try:
+                response = llm.invoke(st.session_state.chat_history)
+                st.session_state.chat_history.append(AIMessage(content=response.content))
+            except Exception as e:
+                st.error(f"Chat generation failed: {str(e)}")
 
 # Display the entire chat history
 for msg in st.session_state.chat_history:
