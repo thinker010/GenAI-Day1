@@ -1,10 +1,9 @@
 import streamlit as st
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
-import requests
 
-# Initialize the chat model (text-only)
-llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
+# Initialize the chat model with image generation capability
+llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-preview-image-generation")
 
 # Session state for chat history
 if "chat_history" not in st.session_state:
@@ -23,16 +22,12 @@ if prompt:
     if "generate image:" in prompt.lower():
         image_prompt = prompt.lower().replace("generate image:", "").strip()
 
-        # Generate image using an API (replace with actual image API URL)
+        # Generate image using the Gemini model with image generation
         with st.spinner("Generating image..."):
             try:
-                image_response = requests.post(
-                    "https://api.generativeai.com/v1/generate-image",  # Replace with actual API
-                    json={"prompt": image_prompt}
-                )
-                if image_response.status_code == 200 and "image_url" in image_response.json():
-                    image_url = image_response.json()["image_url"]
-                    st.session_state.chat_history.append(AIMessage(content=f"Generated an image for: {image_prompt}\n[IMAGE]{image_url}[/IMAGE]"))
+                response = llm.invoke([HumanMessage(content=f"Generate an image of: {image_prompt}")])
+                if response and response.content:
+                    st.session_state.chat_history.append(AIMessage(content=f"Generated an image for: {image_prompt}\n[IMAGE]{response.content}[/IMAGE]"))
                 else:
                     st.error("Failed to generate image.")
             except Exception as e:
