@@ -21,6 +21,9 @@ client = genai.Client(api_key=API_KEY)
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = [SystemMessage(content="You are a helpful assistant.")]
 
+if "image_urls" not in st.session_state:
+    st.session_state.image_urls = []
+
 st.title("🧠 Gemini Chatbot with Image Generation")
 
 # Chat input
@@ -41,7 +44,6 @@ if prompt:
                     )
                 )
                 text_response = ""  
-                image_url = None
 
                 for part in response.candidates[0].content.parts:
                     if part.text:
@@ -51,14 +53,10 @@ if prompt:
                         buffered = BytesIO()
                         image.save(buffered, format="PNG")
                         img_str = base64.b64encode(buffered.getvalue()).decode()
-                        image_url = f"data:image/png;base64,{img_str}"
+                        st.session_state.image_urls.append(f"data:image/png;base64,{img_str}")
 
                 if text_response:
                     st.session_state.chat_history.append(AIMessage(content=text_response))
-
-                if image_url:
-                    st.session_state.chat_history.append(AIMessage(content="[IMAGE]"))
-                    st.session_state.image_url = image_url
 
             except Exception as e:
                 st.error(f"Image generation failed: {str(e)}")
@@ -76,7 +74,7 @@ for msg in st.session_state.chat_history:
     if isinstance(msg, HumanMessage):
         st.chat_message("user").write(msg.content)
     elif isinstance(msg, AIMessage):
-        if msg.content == "[IMAGE]" and "image_url" in st.session_state:
-            st.image(st.session_state.image_url, caption="Generated Image")
-        else:
-            st.chat_message("assistant").write(msg.content)
+        st.chat_message("assistant").write(msg.content)
+
+for image_url in st.session_state.image_urls:
+    st.image(image_url, caption="Generated Image")
