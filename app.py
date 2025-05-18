@@ -53,9 +53,11 @@ if prompt:
                         img_str = base64.b64encode(buffered.getvalue()).decode()
                         image_url = f"data:image/png;base64,{img_str}"
 
-                st.session_state.chat_history.append(
-                    AIMessage(content=text_response + (f"\n[IMAGE]{image_url}[/IMAGE]" if image_url else ""))
-                )
+                if text_response:
+                    st.session_state.chat_history.append(AIMessage(content=text_response))
+
+                if image_url:
+                    st.image(image_url, caption="Generated Image")
 
             except Exception as e:
                 st.error(f"Image generation failed: {str(e)}")
@@ -73,9 +75,4 @@ for msg in st.session_state.chat_history:
     if isinstance(msg, HumanMessage):
         st.chat_message("user").write(msg.content)
     elif isinstance(msg, AIMessage):
-        if "[IMAGE]" in msg.content:
-            content, image_url = msg.content.split("[IMAGE]")[0], msg.content.split("[IMAGE]")[1].split("[/IMAGE]")[0]
-            st.chat_message("assistant").write(content)
-            st.chat_message("assistant").image(image_url, caption="Generated Image")
-        else:
-            st.chat_message("assistant").write(msg.content)
+        st.chat_message("assistant").write(msg.content)
