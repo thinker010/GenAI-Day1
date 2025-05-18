@@ -2,19 +2,18 @@ import streamlit as st
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
-# For Google GenAI official SDK
+# For Google GenAI SDK (Image Generation)
 from google import genai
 from google.genai import types
 from PIL import Image
 from io import BytesIO
 import base64
+import os
 
-# Initialize LangChain chat model (text only)
+# Initialize LangChain chat model for text
 llm_text = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
 
 # Initialize Google GenAI client for image generation
-# IMPORTANT: Set your API key as an environment variable or however you get it in your environment
-import os
 API_KEY = os.getenv("GOOGLE_API_KEY")
 client = genai.Client(api_key=API_KEY)
 
@@ -34,20 +33,20 @@ if prompt:
         image_prompt = prompt.lower().replace("generate image:", "").strip()
         with st.spinner("Generating image..."):
             try:
-                # Use official SDK for image generation
                 response = client.models.generate_content(
                     model="gemini-2.0-flash-preview-image-generation",
                     contents=image_prompt,
                     config=types.GenerateContentConfig(
-                        response_modalities=['TEXT', 'IMAGE']
+                        response_modalities=["TEXT", "IMAGE"]
                     )
                 )
+                text_response = ""  
                 image_url = None
-                text_response = ""
+
                 for part in response.candidates[0].content.parts:
-                    if part.text is not None:
+                    if part.text:
                         text_response += part.text
-                    elif part.inline_data is not None:
+                    elif part.inline_data:
                         image = Image.open(BytesIO(part.inline_data.data))
                         buffered = BytesIO()
                         image.save(buffered, format="PNG")
@@ -57,6 +56,7 @@ if prompt:
                 st.session_state.chat_history.append(
                     AIMessage(content=text_response + (f"\n[IMAGE]{image_url}[/IMAGE]" if image_url else ""))
                 )
+
             except Exception as e:
                 st.error(f"Image generation failed: {str(e)}")
 
