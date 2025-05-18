@@ -27,7 +27,7 @@ if prompt:
             image_url = llm.invoke_image(image_prompt)  # Assuming the model has an image generation API
 
         if image_url:
-            st.session_state.chat_history.append(AIMessage(content=f"Generated an image for: {image_prompt}", additional_data={"image_url": image_url}))
+            st.session_state.chat_history.append(AIMessage(content=f"Generated an image for: {image_prompt}\n[IMAGE]{image_url}[/IMAGE]"))
         else:
             st.error("Failed to generate image.")
 
@@ -44,7 +44,9 @@ for msg in st.session_state.chat_history:
     if isinstance(msg, HumanMessage):
         st.chat_message("user").write(msg.content)
     elif isinstance(msg, AIMessage):
-        if "image_url" in getattr(msg, "additional_data", {}):
-            st.chat_message("assistant").image(msg.additional_data["image_url"], caption="Generated Image")
+        if "[IMAGE]" in msg.content:
+            content, image_url = msg.content.split("[IMAGE]")[0], msg.content.split("[IMAGE]")[1].split("[/IMAGE]")[0]
+            st.chat_message("assistant").write(content)
+            st.chat_message("assistant").image(image_url, caption="Generated Image")
         else:
             st.chat_message("assistant").write(msg.content)
