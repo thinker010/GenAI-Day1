@@ -21,9 +21,6 @@ client = genai.Client(api_key=API_KEY)
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = [SystemMessage(content="You are a helpful assistant.")]
 
-if "image_urls" not in st.session_state:
-    st.session_state.image_urls = []
-
 st.title("🧠 Gemini Chatbot with Image Generation")
 
 # Chat input
@@ -44,6 +41,7 @@ if prompt:
                     )
                 )
                 text_response = ""  
+                image_url = None
 
                 for part in response.candidates[0].content.parts:
                     if part.text:
@@ -53,10 +51,13 @@ if prompt:
                         buffered = BytesIO()
                         image.save(buffered, format="PNG")
                         img_str = base64.b64encode(buffered.getvalue()).decode()
-                        st.session_state.image_urls.append(f"data:image/png;base64,{img_str}")
+                        image_url = f"data:image/png;base64,{img_str}"
 
                 if text_response:
                     st.session_state.chat_history.append(AIMessage(content=text_response))
+
+                if image_url:
+                    st.session_state.chat_history.append(AIMessage(content=f"[IMAGE]{image_url}[/IMAGE]"))
 
             except Exception as e:
                 st.error(f"Image generation failed: {str(e)}")
@@ -74,7 +75,9 @@ for msg in st.session_state.chat_history:
     if isinstance(msg, HumanMessage):
         st.chat_message("user").write(msg.content)
     elif isinstance(msg, AIMessage):
-        st.chat_message("assistant").write(msg.content)
-
-for image_url in st.session_state.image_urls:
-    st.image(image_url, caption="Generated Image")
+        if "[IMAGE]" in msg.content:
+            content, image_url = msg.content.split("[IMAGE]")[0], msg.content.split("[IMAGE]")[1].split("[/IMAGE]")[0]
+            st.chat_message("assistant").write(content)
+            st.chat_message("assistant").image(image_url, caption="Generated Image")
+        else:
+            st.chat_message("assistant").write(msg.content)
