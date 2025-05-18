@@ -2,47 +2,73 @@ import streamlit as st
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
-# Initialize the chat model with image generation capability
-llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-preview-image-generation")
+# For Google GenAI official SDK
+from google import genai
+from google.genai import types
+from PIL import Image
+from io import BytesIO
+import base64
+
+# Initialize LangChain chat model (text only)
+llm_text = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
+
+# Initialize Google GenAI client for image generation
+# IMPORTANT: Set your API key as an environment variable or however you get it in your environment
+import os
+API_KEY = os.getenv("GOOGLE_API_KEY")
+client = genai.Client(api_key=API_KEY)
 
 # Session state for chat history
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = [SystemMessage(content="You are a helpful assistant.")]
 
-st.title("🧠 Gemini Chatbot")
+st.title("🧠 Gemini Chatbot with Image Generation")
 
 # Chat input
 prompt = st.chat_input("Say something or request an image...")
 
 if prompt:
-    # Append user message immediately
     st.session_state.chat_history.append(HumanMessage(content=prompt))
 
-    # Check for image request keyword
     if "generate image:" in prompt.lower():
         image_prompt = prompt.lower().replace("generate image:", "").strip()
-
-        # Generate image using the Gemini model with image generation
         with st.spinner("Generating image..."):
             try:
-                response = llm.invoke([HumanMessage(content=f"Generate an image of: {image_prompt}")])
-                if response and response.content:
-                    st.session_state.chat_history.append(AIMessage(content=f"Generated an image for: {image_prompt}\n[IMAGE]{response.content}[/IMAGE]"))
-                else:
-                    st.error("Failed to generate image.")
+                # Use official SDK for image generation
+                response = client.models.generate_content(
+                    model="gemini-2.0-flash-preview-image-generation",
+                    contents=image_prompt,
+                    config=types.GenerateContentConfig(
+                        response_modalities=['TEXT', 'IMAGE']
+                    )
+                )
+                image_url = None
+                text_response = ""
+                for part in response.candidates[0].content.parts:
+                    if part.text is not None:
+                        text_response += part.text
+                    elif part.inline_data is not None:
+                        image = Image.open(BytesIO(part.inline_data.data))
+                        buffered = BytesIO()
+                        image.save(buffered, format="PNG")
+                        img_str = base64.b64encode(buffered.getvalue()).decode()
+                        image_url = f"data:image/png;base64,{img_str}"
+
+                st.session_state.chat_history.append(
+                    AIMessage(content=text_response + (f"\n[IMAGE]{image_url}[/IMAGE]" if image_url else ""))
+                )
             except Exception as e:
                 st.error(f"Image generation failed: {str(e)}")
 
     else:
-        # Text response
         with st.spinner("Thinking..."):
             try:
-                response = llm.invoke(st.session_state.chat_history)
+                response = llm_text.invoke(st.session_state.chat_history)
                 st.session_state.chat_history.append(AIMessage(content=response.content))
             except Exception as e:
                 st.error(f"Chat generation failed: {str(e)}")
 
-# Display the entire chat history
+# Display chat history
 for msg in st.session_state.chat_history:
     if isinstance(msg, HumanMessage):
         st.chat_message("user").write(msg.content)
